@@ -79,7 +79,8 @@ export const ChartComponent = forwardRef<ChartComponentRef, ChartComponentProps>
       'rect': 'rect',
       'circle': 'circle',
       'text': 'simpleAnnotation',
-      'fibonacciLine': 'fibonacciLine'
+      'fibonacciLine': 'fibonacciLine',
+      'parallelChannel': 'parallelStraightLine'
     };
 
     const overlayName = overlayMapping[activeTool];
@@ -105,7 +106,7 @@ export const ChartComponent = forwardRef<ChartComponentRef, ChartComponentProps>
   return (
     <div 
       ref={chartContainerRef} 
-      className="w-full h-full min-h-[500px]"
+      className="w-full h-full"
     />
   );
 });

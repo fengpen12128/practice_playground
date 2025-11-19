@@ -4,7 +4,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChartComponent, ChartComponentRef } from './ChartComponent';
 import { ControlPanel } from './ControlPanel';
 import { DrawingToolbar, DrawingTool } from './DrawingToolbar';
+import { OrderForm } from './OrderForm';
+import { OrderList } from './OrderList';
 import { MOCK_ES_DATA, MOCK_XAU_DATA, Candle } from '../lib/data';
+import { Position, Order } from '../types';
 import clsx from 'clsx';
 
 type Symbol = 'ES' | 'XAU';
@@ -17,6 +20,9 @@ export const Playground: React.FC = () => {
   const [playbackSpeed, setPlaybackSpeed] = useState(1000); // ms per bar
   const [activeTool, setActiveTool] = useState<DrawingTool>('cursor');
   
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+
   const chartRef = useRef<ChartComponentRef>(null);
 
   useEffect(() => {
@@ -68,6 +74,63 @@ export const Playground: React.FC = () => {
   }, [isPlaying, handleNextBar]);
 
   const visibleData = data.slice(0, currentIndex + 1);
+  const currentPrice = visibleData[visibleData.length - 1].close;
+
+  const handlePlaceOrder = (side: 'BUY' | 'SELL', size: number) => {
+    const newOrder: Order = {
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'MARKET',
+      side,
+      size,
+      price: currentPrice,
+      timestamp: Date.now(),
+      status: 'FILLED'
+    };
+    setOrders(prev => [...prev, newOrder]);
+
+    setPositions(prev => {
+      const existing = prev.find(p => p.symbol === symbol);
+      
+      if (!existing) {
+        return [...prev, {
+          symbol,
+          side: side === 'BUY' ? 'LONG' : 'SHORT',
+          size,
+          entryPrice: currentPrice,
+          unrealizedPnl: 0
+        }];
+      }
+
+      const isSameSide = (existing.side === 'LONG' && side === 'BUY') || (existing.side === 'SHORT' && side === 'SELL');
+      
+      if (isSameSide) {
+        const totalSize = existing.size + size;
+        const totalValue = (existing.size * existing.entryPrice) + (size * currentPrice);
+        return prev.map(p => p.symbol === symbol ? {
+          ...p,
+          size: totalSize,
+          entryPrice: totalValue / totalSize
+        } : p);
+      } else {
+        if (existing.size > size) {
+          // Partial close
+          return prev.map(p => p.symbol === symbol ? { ...p, size: existing.size - size } : p);
+        } else if (existing.size === size) {
+          // Full close
+          return prev.filter(p => p.symbol !== symbol);
+        } else {
+          // Flip
+          const remainingSize = size - existing.size;
+          return prev.map(p => p.symbol === symbol ? {
+            ...p,
+            side: side === 'BUY' ? 'LONG' : 'SHORT',
+            size: remainingSize,
+            entryPrice: currentPrice
+          } : p);
+        }
+      }
+    });
+  };
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
@@ -109,33 +172,63 @@ export const Playground: React.FC = () => {
         />
 
         <div className="flex-1 flex flex-col gap-4 overflow-hidden">
-          <div className="flex-1 bg-zinc-900 rounded-xl border border-zinc-800 shadow-sm overflow-hidden relative">
-            <ChartComponent 
-              ref={chartRef}
-              data={visibleData} 
-              activeTool={activeTool}
-              onToolCompleted={() => setActiveTool('cursor')}
-            />
-            <div className="absolute top-4 left-4 bg-zinc-950/80 backdrop-blur-sm border border-zinc-800 px-3 py-1.5 rounded-md text-xs font-mono text-zinc-400 pointer-events-none">
-              <span className="font-bold text-zinc-200">{symbol}</span> <span className="mx-1">·</span> 5m
+          {/* Top Section: Chart + OrderForm */}
+          <div className="flex-1 flex flex-row gap-4 min-h-0">
+             {/* Chart Area */}
+            <div className="flex-1 bg-zinc-900 rounded-xl border border-zinc-800 shadow-sm overflow-hidden relative flex flex-col">
+              <div className="flex-1 relative">
+                <ChartComponent 
+                  ref={chartRef}
+                  data={visibleData} 
+                  activeTool={activeTool}
+                  onToolCompleted={() => setActiveTool('cursor')}
+                />
+                <div className="absolute top-4 left-4 bg-zinc-950/80 backdrop-blur-sm border border-zinc-800 px-3 py-1.5 rounded-md text-xs font-mono text-zinc-400 pointer-events-none">
+                  <span className="font-bold text-zinc-200">{symbol}</span> <span className="mx-1">·</span> 5m
+                </div>
+              </div>
+              
+              {/* Control Panel integrated below chart but inside the chart box? Or keep separate? */}
+              {/* Let's keep it separate below the chart box for now, or integrated at bottom of chart box */}
+            </div>
+
+            {/* Order Form */}
+            <div className="w-[300px] flex-shrink-0 bg-zinc-900 rounded-xl border border-zinc-800 shadow-sm overflow-hidden">
+              <OrderForm 
+                currentPrice={currentPrice}
+                onPlaceOrder={handlePlaceOrder}
+                symbol={symbol}
+              />
             </div>
           </div>
 
-          <ControlPanel
-            isPlaying={isPlaying}
-            onPlayPause={() => setIsPlaying(!isPlaying)}
-            onNextBar={handleNextBar}
-            onReset={() => {
-              setIsPlaying(false);
-              setCurrentIndex(100);
-              chartRef.current?.clearOverlays();
-            }}
-            currentBarIndex={currentIndex}
-            totalBars={data.length}
-          />
+          {/* Bottom Section: ControlPanel + OrderList */}
+          <div className="flex-shrink-0 flex flex-col gap-4 h-[300px]">
+             <ControlPanel
+                isPlaying={isPlaying}
+                onPlayPause={() => setIsPlaying(!isPlaying)}
+                onNextBar={handleNextBar}
+                onReset={() => {
+                  setIsPlaying(false);
+                  setCurrentIndex(100);
+                  chartRef.current?.clearOverlays();
+                  setPositions([]); // Optional: clear positions on reset
+                  setOrders([]);
+                }}
+                currentBarIndex={currentIndex}
+                totalBars={data.length}
+              />
+              
+              <div className="flex-1 bg-zinc-900 rounded-xl border border-zinc-800 shadow-sm overflow-hidden">
+                <OrderList 
+                  positions={positions}
+                  orders={orders}
+                  currentPrice={currentPrice}
+                />
+              </div>
+          </div>
         </div>
       </main>
     </div>
   );
 };
-

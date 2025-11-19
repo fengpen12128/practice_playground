@@ -10,7 +10,8 @@ import {
   Square, 
   Circle, 
   Type,
-  Trash2
+  Trash2,
+  AlignJustify
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -23,7 +24,8 @@ export type DrawingTool =
   | 'rect'
   | 'circle'
   | 'text'
-  | 'fibonacciLine';
+  | 'fibonacciLine'
+  | 'parallelChannel';
 
 interface DrawingToolbarProps {
   activeTool: DrawingTool;
@@ -41,6 +43,7 @@ export const DrawingToolbar: React.FC<DrawingToolbarProps> = ({
     { id: 'priceLine', icon: <Minus size={18} />, label: 'Horizontal Line' },
     { id: 'trendLine', icon: <TrendingUp size={18} />, label: 'Trend Line' },
     { id: 'rayLine', icon: <ArrowRight size={18} />, label: 'Ray' },
+    { id: 'parallelChannel', icon: <AlignJustify size={18} className="rotate-90" />, label: 'Parallel Channel' },
     { id: 'segment', icon: <Maximize size={18} className="rotate-45" />, label: 'Segment' },
     { id: 'rect', icon: <Square size={18} />, label: 'Rectangle' },
     { id: 'circle', icon: <Circle size={18} />, label: 'Circle' },
