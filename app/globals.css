@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Default to Dark Mode colors */
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,11 +13,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
+/* Optional: Light mode override if needed later, but for now we default to dark */
+@media (prefers-color-scheme: light) {
+  /* You can uncomment this if you want to support system light mode, 
+     but the user requested "Mainly dark mode", so we keep it dark by default. 
+     Or we can just leave it dark always. */
+  /*
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #171717;
   }
+  */
 }
 
 body {

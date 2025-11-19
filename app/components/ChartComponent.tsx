@@ -1,82 +1,106 @@
 'use client';
 
-import { createChart, ColorType, IChartApi, ISeriesApi, Time } from 'lightweight-charts';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { init, dispose, Chart, OverlayCreate } from 'klinecharts';
 import { Candle } from '../lib/data';
+import { DrawingTool } from './DrawingToolbar';
 
 interface ChartComponentProps {
   data: Candle[];
-  colors?: {
-    backgroundColor?: string;
-    lineColor?: string;
-    textColor?: string;
-    areaTopColor?: string;
-    areaBottomColor?: string;
-  };
+  activeTool: DrawingTool;
+  onToolCompleted?: () => void;
 }
 
-export const ChartComponent: React.FC<ChartComponentProps> = ({ data, colors }) => {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+export interface ChartComponentRef {
+  clearOverlays: () => void;
+}
 
+export const ChartComponent = forwardRef<ChartComponentRef, ChartComponentProps>(({ 
+  data, 
+  activeTool,
+  onToolCompleted 
+}, ref) => {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<Chart | null>(null);
+
+  // Initialize Chart
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    const handleResize = () => {
-      if (chartRef.current && chartContainerRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
-    };
+    const chart = init(chartContainerRef.current);
+    if (!chart) return;
+    
+    chartInstanceRef.current = chart;
 
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: colors?.backgroundColor || '#1E1E1E' },
-        textColor: colors?.textColor || '#DDD',
-      },
+    // Set Dark Theme
+    chart.setStyles('dark');
+    chart.setStyles({
       grid: {
-        vertLines: { color: '#2B2B43' },
-        horzLines: { color: '#2B2B43' },
+        horizontal: { color: '#27272a' },
+        vertical: { color: '#27272a' }
       },
-      width: chartContainerRef.current.clientWidth,
-      height: 500, // Fixed height for now, or make it responsive
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
+      candle: {
+        bar: {
+          upColor: '#26a69a',
+          downColor: '#ef5350',
+          noChangeColor: '#888888'
+        }
+      }
     });
-
-    chartRef.current = chart;
-
-    const newSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
-
-    seriesRef.current = newSeries;
-    newSeries.setData(data);
-
-    window.addEventListener('resize', handleResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
-      chart.remove();
+      dispose(chartContainerRef.current!);
     };
-  }, [colors]); // Re-create chart if colors change, but not data
+  }, []);
 
-  // Update data separately to avoid re-creating chart
+  // Update Data
   useEffect(() => {
-    if (seriesRef.current) {
-      seriesRef.current.setData(data);
-      // Auto-scroll to the latest bar
-      if (data.length > 0) {
-        chartRef.current?.timeScale().scrollToPosition(0, true);
-      }
+    if (chartInstanceRef.current && data.length > 0) {
+      // Cast data to any to bypass strict type check for now, or extend KLineData
+      chartInstanceRef.current.applyNewData(data as any);
     }
   }, [data]);
+
+  // Handle Drawing Tools
+  useEffect(() => {
+    if (!chartInstanceRef.current) return;
+
+    if (activeTool === 'cursor') {
+      // Cancel drawing if switching to cursor, but klinecharts handles this by just not creating an overlay
+      return;
+    }
+
+    // Map our tool names to klinecharts overlay names
+    const overlayMapping: Record<string, string> = {
+      'priceLine': 'horizontalRayLine', // or horizontalStraightLine
+      'trendLine': 'segment', // klinecharts 'segment' is a line segment, 'straightLine' is infinite
+      'rayLine': 'rayLine',
+      'segment': 'segment',
+      'rect': 'rect',
+      'circle': 'circle',
+      'text': 'simpleAnnotation',
+      'fibonacciLine': 'fibonacciLine'
+    };
+
+    const overlayName = overlayMapping[activeTool];
+    
+    if (overlayName) {
+      chartInstanceRef.current.createOverlay({
+        name: overlayName,
+        onDrawEnd: () => {
+          if (onToolCompleted) onToolCompleted();
+          return true; // Return true to indicate success/allow default behavior
+        }
+      });
+    }
+
+  }, [activeTool, onToolCompleted]);
+
+  useImperativeHandle(ref, () => ({
+    clearOverlays: () => {
+      chartInstanceRef.current?.removeOverlay();
+    }
+  }));
 
   return (
     <div 
@@ -84,5 +108,6 @@ export const ChartComponent: React.FC<ChartComponentProps> = ({ data, colors }) 
       className="w-full h-full min-h-[500px]"
     />
   );
-};
+});
 
+ChartComponent.displayName = 'ChartComponent';

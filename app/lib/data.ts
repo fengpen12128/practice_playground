@@ -1,11 +1,10 @@
-import { Time } from 'lightweight-charts';
-
 export interface Candle {
-  time: Time;
+  timestamp: number;
   open: number;
   high: number;
   low: number;
   close: number;
+  volume?: number;
 }
 
 export const generateData = (
@@ -28,15 +27,16 @@ export const generateData = (
     const high = Math.max(open, close) + Math.random() * volatility * 0.5;
     const low = Math.min(open, close) - Math.random() * volatility * 0.5;
 
-    // Unix timestamp for intraday
-    const time = Math.floor(currentDate.getTime() / 1000) as Time; 
+    // klinecharts uses milliseconds timestamp
+    const timestamp = currentDate.getTime();
 
     data.push({
-      time,
+      timestamp,
       open,
       high,
       low,
       close,
+      volume: Math.random() * 1000,
     });
 
     currentPrice = close;
@@ -47,4 +47,3 @@ export const generateData = (
 
 export const MOCK_ES_DATA = generateData(4500, 2, 1000, new Date('2023-01-01T09:30:00'));
 export const MOCK_XAU_DATA = generateData(2000, 1, 1000, new Date('2023-01-01T09:30:00'));
-
